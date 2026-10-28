@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>实验室药品共享台账</title>
+<script src="https://cdn.bootcdn.net/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.bootcdn.net/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#F5F5F7; --card:#FFFFFF; --line:#E3E3E4;
+  --t1:#1D1D1F; --t2:#6E6E73; --t3:#86868B;
+  --acc:#0066CC; --acc-h:#0077ED; --on:#FFFFFF;
+  --good:#0E7C3A; --warn:#B45309; --bad:#C62F1F;
+  --r:16px; --btnr:980px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,'SF Pro Display','PingFang SC','Microsoft YaHei',sans-serif;
+  background:var(--bg); color:var(--t2); line-height:1.5; padding-bottom:48px;
+}
+.wrap{max-width:1060px;margin:0 auto;padding:0 20px}
+header{padding:28px 0 4px}
+.brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.brand h1{font-size:24px;font-weight:700;color:var(--t1);letter-spacing:-.01em}
+.brand .sub{font-size:13px;color:var(--t3)}
+.share-bar{background:var(--card);border-radius:var(--r);padding:16px 18px;margin:18px 0 12px;
+  border:1px solid var(--line)}
+.share-grid{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:12px;color:var(--t3);font-weight:600}
+.field input{height:40px;border:1px solid var(--line);border-radius:12px;padding:0 12px;font-size:14px;
+  background:#fff;color:var(--t1);outline:none;min-width:0}
+.field input:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(0,102,204,.12)}
+.f-name{width:150px}
+.f-code{width:190px;flex:1;max-width:280px}
+.btn{height:40px;padding:0 20px;border:none;border-radius:var(--btnr);font-size:14px;font-weight:600;
+  cursor:pointer;transition:.2s cubic-bezier(.28,.11,.32,1);display:inline-flex;align-items:center;gap:6px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus{outline:2px solid var(--acc);outline-offset:2px}
+.btn-pri{background:var(--acc);color:var(--on)}
+.btn-pri:hover:not(:disabled){background:var(--acc-h)}
+.btn-sec{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+.btn-sec:hover:not(:disabled){background:var(--acc);color:var(--on)}
+.btn-ghost{background:var(--bg);color:var(--t2);border:1px solid var(--line)}
+.btn-ghost:hover:not(:disabled){border-color:var(--t3)}
+.btn-sm{height:34px;padding:0 14px;font-size:13px}
+.mode-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--t3)}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:980px;font-size:12px;font-weight:600}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-local{background:#EEEEF0;color:#6E6E73}
+.b-p2p{background:rgba(0,102,204,.12);color:#004E9E}
+.b-cloud{background:rgba(14,124,58,.14);color:var(--good)}
+.link{color:var(--acc);cursor:pointer;text-decoration:none;font-weight:600}
+.link:hover{color:var(--acc-h)}
+.cloud-panel{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:12px 0;display:none}
+.cloud-panel.open{display:block}
+.cloud-panel h3{font-size:15px;color:var(--t1);margin-bottom:8px}
+.cloud-panel .tip{font-size:12.5px;color:var(--t2);margin-bottom:12px}
+.cloud-grid{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.cloud-grid .field{flex:1;min-width:200px}
+.cloud-grid input{width:100%}
+.cloud-actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.cloud-actions .btn{height:36px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:16px 0}
+.stat{background:var(--card);border-radius:var(--r);border:1px solid var(--line);padding:14px 16px}
+.stat .num{font-size:26px;font-weight:700;color:var(--t1);letter-spacing:-.02em}
+.stat .lbl{font-size:12px;color:var(--t3);margin-top:2px}
+.stat.c-low .num{color:var(--warn)} .stat.c-empty .num{color:var(--bad)} .stat.c-ok .num{color:var(--good)}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.search{flex:1;min-width:180px;height:40px;border:1px solid var(--line);border-radius:12px;padding:0 12px;
+  font-size:14px;background:#fff;color:var(--t1);outline:none}
+.search:focus{border-color:var(--acc)}
+.toolbar select{height:40px;border:1px solid var(--line);border-radius:12px;padding:0 10px;font-size:14px;
+  background:#fff;color:var(--t1);outline:none;cursor:pointer}
+.tbl-card{background:var(--card);border-radius:var(--r);border:1px solid var(--line);overflow:hidden}
+.tbl-scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:640px}
+thead th{background:#FBFBFD;color:var(--t3);font-size:12px;font-weight:600;text-align:left;
+  padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+tbody td{padding:12px 14px;border-bottom:1px solid #F0F0F2;color:var(--t1);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#FAFAFC}
+.drug-name{font-weight:600}
+.drug-sub{font-size:12px;color:var(--t3);margin-top:2px}
+.num{white-space:nowrap;font-variant-numeric:tabular-nums}
+.num .unit{color:var(--t3);font-size:12px}
+.st{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:700;white-space:nowrap}
+.st-ok{background:rgba(14,124,58,.14);color:var(--good)}
+.st-low{background:rgba(180,83,9,.14);color:var(--warn)}
+.st-empty{background:rgba(198,47,31,.14);color:var(--bad)}
+.ops{white-space:nowrap;text-align:right}
+.mini{height:30px;padding:0 12px;border-radius:8px;font-size:12.5px;font-weight:600;border:1px solid var(--line);
+  background:#fff;color:var(--t2);cursor:pointer;margin-left:6px;transition:.15s}
+.mini:hover{border-color:var(--acc);color:var(--acc)}
+.mini.ghost:hover{border-color:var(--bad);color:var(--bad)}
+.empty-row td{text-align:center;color:var(--t3);padding:36px 14px}
+.logs-card{background:var(--card);border-radius:var(--r);border:1px solid var(--line);margin-top:16px;padding:16px 18px}
+.logs-card h3{font-size:15px;color:var(--t1);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.log-list{max-height:280px;overflow-y:auto;font-size:13px}
+.log-item{display:flex;gap:10px;padding:7px 0;border-bottom:1px dashed #F0F0F2;align-items:baseline}
+.log-item:last-child{border-bottom:none}
+.log-time{color:var(--t3);white-space:nowrap;font-variant-numeric:tabular-nums}
+.log-tag{flex-shrink:0;font-weight:700;font-size:12px;padding:1px 8px;border-radius:6px}
+.tg-in{background:rgba(14,124,58,.14);color:var(--good)}
+.tg-out{background:rgba(180,83,9,.14);color:var(--warn)}
+.tg-edit{background:rgba(0,102,204,.12);color:#004E9E}
+.tg-new{background:rgba(122,79,192,.12);color:#6B3FA8}
+.tg-del{background:rgba(198,47,31,.12);color:var(--bad)}
+.log-text{color:var(--t1);flex:1}
+.log-note{color:var(--t3);font-size:12px}
+.mask{position:fixed;inset:0;background:rgba(20,20,25,.42);display:none;align-items:center;justify-content:center;
+  z-index:50;padding:20px}
+.mask.open{display:flex}
+.modal{background:#fff;border-radius:18px;width:100%;max-width:430px;padding:22px 24px;box-shadow:0 12px 40px rgba(0,0,0,.16)}
+.modal h3{font-size:17px;color:var(--t1);margin-bottom:16px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid .full{grid-column:1/-1}
+.form-grid label{font-size:12px;color:var(--t3);font-weight:600;display:block;margin-bottom:5px}
+.form-grid input,.form-grid select{width:100%;height:38px;border:1px solid var(--line);border-radius:10px;padding:0 10px;
+  font-size:14px;color:var(--t1);outline:none;background:#fff}
+.form-grid input:focus{border-color:var(--acc)}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+#toastWrap{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;
+  gap:8px;align-items:center;pointer-events:none}
+.toast{background:#2A2A32;color:#fff;font-size:13.5px;padding:10px 18px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.2);
+  opacity:0;transform:translateY(8px);transition:.25s}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.err{background:#C62F1F}.toast.ok{background:#0E7C3A}
+#pdfWrap{position:fixed;left:-12000px;top:0;background:#fff;width:1000px;padding:40px;color:#222}
+#pdfWrap h1{font-size:24px;margin-bottom:6px}
+#pdfWrap .meta{font-size:13px;color:#555;margin-bottom:14px}
+#pdfWrap table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+#pdfWrap th,#pdfWrap td{border:1px solid #ccc;padding:8px 10px;text-align:left;color:#222}
+#pdfWrap th{background:#f3f3f5}
+#pdfWrap .stat-line{font-size:13px;color:#333;margin:10px 0}
+@media (max-width:720px){
+  .share-grid .f-name{width:100%}
+  .share-grid .f-code{flex:1}
+  .brand h1{font-size:20px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .toolbar .search{min-width:100%}
+  .modal{max-width:100%}
+  .ops .mini{padding:0 8px;font-size:11.5px}
+}
+footer{margin-top:28px;text-align:center;font-size:12px;color:var(--t3)}
+/* 登录 / 注册 */
+#authGate{position:fixed;inset:0;background:var(--bg);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+#authGate.hidden{display:none}
+.auth-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:28px 28px 24px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,.06)}
+.auth-card h2{font-size:20px;color:var(--t1);margin-bottom:6px}
+.auth-card .auth-sub{font-size:13px;color:var(--t3);margin-bottom:18px}
+.auth-tabs{display:flex;gap:8px;margin-bottom:16px}
+.auth-tabs button{flex:1;height:36px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--t2);font-size:13px;font-weight:600;cursor:pointer}
+.auth-tabs button.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+.auth-field{margin-bottom:12px}
+.auth-field label{font-size:12px;color:var(--t3);font-weight:600;display:block;margin-bottom:5px}
+.auth-field input{width:100%;height:40px;border:1px solid var(--line);border-radius:12px;padding:0 12px;font-size:14px;color:var(--t1);outline:none}
+.auth-field input:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(0,102,204,.12)}
+.auth-actions{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+.auth-tip{font-size:12px;color:var(--t3);margin-top:12px;line-height:1.5}
+.auth-tip b{color:var(--t2)}
+#mainApp{display:none}
+#mainApp.show{display:block}
+.user-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--t3)}
+.user-bar .role{font-weight:700;padding:2px 8px;border-radius:6px;font-size:12px}
+.role-admin{background:rgba(122,79,192,.14);color:#6B3FA8}
+.role-user{background:rgba(0,102,204,.12);color:#004E9E}
+.admin-panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;margin:12px 0;display:none}
+.admin-panel.open{display:block}
+.admin-panel h3{font-size:15px;color:var(--t1);margin-bottom:10px}
+.user-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #F0F0F2;flex-wrap:wrap}
+.user-row:last-child{border-bottom:none}
+.user-row .uname{font-weight:600;color:var(--t1);min-width:80px}
+.user-row .ustatus{font-size:12px;padding:2px 8px;border-radius:6px;font-weight:600}
+.st-pending{background:rgba(180,83,9,.14);color:var(--warn)}
+.st-approved{background:rgba(14,124,58,.14);color:var(--good)}
+.st-rejected{background:rgba(198,47,31,.14);color:var(--bad)}
+</style>
+</head>
+<body>
+
+<!-- 登录 / 注册门禁 -->
+<div id="authGate">
+  <div class="auth-card">
+    <h2>实验室药品台账</h2>
+    <div class="auth-sub">请登录后使用。新用户需注册并由管理员审核通过。</div>
+    <div class="auth-tabs">
+      <button type="button" class="active" id="tabLogin">登录</button>
+      <button type="button" id="tabReg">注册申请</button>
+    </div>
+    <div id="loginBox">
+      <div class="auth-field"><label>用户名</label><input id="loginUser" autocomplete="username" placeholder="请输入用户名"></div>
+      <div class="auth-field"><label>密码</label><input id="loginPass" type="password" autocomplete="current-password" placeholder="请输入密码"></div>
+      <div class="auth-actions">
+        <button class="btn btn-pri" id="btnDoLogin" style="width:100%;justify-content:center">登录</button>
+      </div>
+    </div>
+    <div id="regBox" style="display:none">
+      <div class="auth-field"><label>用户名 *</label><input id="regUser" placeholder="字母数字，用于登录"></div>
+      <div class="auth-field"><label>显示名称 *</label><input id="regName" placeholder="如：张工"></div>
+      <div class="auth-field"><label>密码 *</label><input id="regPass" type="password" placeholder="至少 4 位"></div>
+      <div class="auth-field"><label>确认密码 *</label><input id="regPass2" type="password" placeholder="再输入一次"></div>
+      <div class="auth-actions">
+        <button class="btn btn-pri" id="btnDoReg" style="width:100%;justify-content:center">提交注册申请</button>
+      </div>
+      <div class="auth-tip">首个注册用户将自动成为<strong>管理员</strong>并立即通过审核；后续用户需等待管理员审核。</div>
+    </div>
+    <div class="auth-tip" style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">
+      使用前请先配置云端数据库（登录与账号数据保存在云端）。<br>
+      <span class="link" id="authOpenCloud">打开云设置</span>
+    </div>
+    <div id="authCloudBox" style="display:none;margin-top:12px">
+      <div class="auth-field"><label>数据库 URL</label><input id="authCfgUrl" placeholder="https://xxx-default-rtdb.firebaseio.com/"></div>
+      <button class="btn btn-sec btn-sm" id="btnAuthSaveCfg" style="width:100%;justify-content:center">保存云配置</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="mainApp">
+
+<header>
+  <div class="brand">
+    <h1>实验室药品台账</h1>
+    <span class="sub">多人共享 · 实时同步 · 余量统计</span>
+  </div>
+  <div class="user-bar">
+    <span>当前用户：<b id="curUserName">—</b></span>
+    <span class="role role-user" id="curUserRole">普通用户</span>
+    <button class="btn btn-ghost btn-sm" id="btnAdmin" style="display:none">用户管理</button>
+    <button class="btn btn-ghost btn-sm" id="btnLogout">退出登录</button>
+  </div>
+</header>
+
+<div class="share-bar">
+  <div class="share-grid">
+    <div class="field f-name">
+      <label>操作人（登录名）</label>
+      <input id="inName" placeholder="登录后自动填充" value="" readonly style="background:#F5F5F7">
+    </div>
+    <div class="field f-code">
+      <label>房间号（可自定义，留空自动生成）</label>
+      <input id="inRoom" placeholder="输入房间号或留空">
+    </div>
+    <button class="btn btn-pri" id="btnCreate">创建房间</button>
+    <button class="btn btn-sec" id="btnJoin">加入房间</button>
+    <button class="btn btn-ghost btn-sm" id="btnCloud">云设置</button>
+  </div>
+  <div class="mode-line">
+    <span class="badge b-local" id="modeBadge"><span class="dot"></span>本地模式</span>
+    <span id="modeText">当前为本地使用，数据仅保存在本机。</span>
+  </div>
+</div>
+
+<div class="admin-panel" id="adminPanel">
+  <h3>用户管理（仅管理员）</h3>
+  <div id="adminUserList" style="font-size:13px;color:var(--t3)">加载中…</div>
+</div>
+
+<div class="cloud-panel" id="cloudPanel">
+  <h3>云设置（可选）—— 让房间永久保留</h3>
+  <div class="tip">
+    默认的「点对点实时模式」无需任何配置，联网即可创建/加入房间；<br>
+    如需<b>房间一旦创建就永久保留、关掉页面数据也不丢</b>，请配置免费的 Firebase 实时数据库（无需信用卡，约 5 分钟）：
+    <br>① 打开 <span class="link" onclick="window.open('https://console.firebase.google.com','_blank')">console.firebase.google.com</span> 用 Google 账号登录 → 新建项目 → 关闭 Google Analytics；
+    <br>② 左侧菜单选「Build → Realtime Database」→ 创建数据库 → <b>选择测试模式</b>（允许读写）→ 复制「数据库 URL」（形如 https://xxx-default-rtdb.firebaseio.com/）；
+    <br>③ 把数据库 URL 粘贴到下方并保存即可。无需填写项目 ID 或 API 密钥。
+  </div>
+  <div class="cloud-grid">
+    <div class="field" style="flex:1;min-width:280px"><label>数据库 URL（必填）</label><input id="cfgUrl" placeholder="https://xxx-default-rtdb.firebaseio.com/"></div>
+  </div>
+  <div class="cloud-actions">
+    <button class="btn btn-pri btn-sm" id="btnSaveCfg">保存配置</button>
+    <button class="btn btn-ghost btn-sm" id="btnClearCfg">清除配置</button>
+    <span id="cfgState" style="font-size:12.5px;color:var(--t3);align-self:center"></span>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="num" id="stTotal">0</div><div class="lbl">药品种类</div></div>
+  <div class="stat c-ok"><div class="num" id="stOk">0</div><div class="lbl">库存充足</div></div>
+  <div class="stat c-low"><div class="num" id="stLow">0</div><div class="lbl">低库存预警</div></div>
+  <div class="stat c-empty"><div class="num" id="stEmpty">0</div><div class="lbl">空库 / 欠量</div></div>
+  <div class="stat"><div class="num" id="stPct">—</div><div class="lbl">总余量占比</div></div>
+</div>
+
+<div class="toolbar">
+  <input class="search" id="inSearch" placeholder="搜索药品名称…">
+  <select id="selFilter">
+    <option value="all">全部状态</option>
+    <option value="enough">库存充足</option>
+    <option value="low">低库存</option>
+    <option value="empty">空库 / 欠量</option>
+  </select>
+  <select id="selSort">
+    <option value="name">按名称</option>
+    <option value="curAsc">余量最少优先</option>
+    <option value="updated">最近更新</option>
+  </select>
+  <button class="btn btn-pri" id="btnAdd">＋ 新增药品</button>
+  <button class="btn btn-ghost" id="btnPdf">导出 PDF</button>
+  <button class="btn btn-ghost btn-sm" id="btnDemo">载入示例</button>
+  <button class="btn btn-ghost btn-sm" id="btnClear">清空</button>
+</div>
+
+<div class="tbl-card">
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr><th>药品名称</th><th>余量 / 总量</th><th>状态</th><th style="text-align:right">操作</th></tr>
+      </thead>
+      <tbody id="tbBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="logs-card">
+  <h3>操作流水 <span id="logCount" style="font-size:12px;color:var(--t3);font-weight:400"></span></h3>
+  <div class="log-list" id="logList"></div>
+</div>
+
+<footer>数据保存于浏览器本地 · 共享模式见顶部说明 · 仅供参考，请以实验室实物为准</footer>
+</div>
+
+<div class="mask" id="maskEdit">
+  <div class="modal">
+    <h3 id="editTitle">新增药品</h3>
+    <div class="form-grid">
+      <div class="full"><label>药品名称 *</label><input id="fName" placeholder="如：无水乙醇"></div>
+      <div><label>单位</label><input id="fUnit" placeholder="g / mL / 瓶 / 支"></div>
+      <div><label>预警阈值</label><input id="fThr" type="number" min="0" placeholder="低于此值预警"></div>
+      <div><label>当前余量</label><input id="fCur" type="number" min="0" step="0.01" value="0"></div>
+      <div><label>总量</label><input id="fTot" type="number" min="0" step="0.01" placeholder="可不填"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" id="btnEditCancel">取消</button>
+      <button class="btn btn-pri btn-sm" id="btnEditOk">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="mask" id="maskStock">
+  <div class="modal">
+    <h3 id="stockTitle">入库</h3>
+    <div id="stockDrug" style="font-size:13px;color:var(--t3);margin-bottom:12px"></div>
+    <div class="form-grid">
+      <div class="full"><label>数量 *</label><input id="fQty" type="number" min="0" step="0.01" placeholder="请输入数量"></div>
+      <div class="full"><label>备注（可选）</label><input id="fNote" placeholder="批次 / 领用人 / 用途等"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-sm" id="btnStockCancel">取消</button>
+      <button class="btn btn-pri btn-sm" id="btnStockOk">确认</button>
+    </div>
+  </div>
+</div>
+
+<div id="pdfWrap">
+  <h1>实验室药品台账</h1>
+  <div class="meta" id="pdfMeta"></div>
+  <div class="stat-line" id="pdfStats"></div>
+  <table>
+    <thead><tr><th>药品名称</th><th>单位</th><th>当前余量</th><th>总量</th><th>状态</th><th>最近更新</th></tr></thead>
+    <tbody id="pdfBody"></tbody>
+  </table>
+  <div id="pdfLogs" style="margin-top:16px;font-size:12px;color:#555"></div>
+</div>
+
+<div id="toastWrap"></div>
+
+<script>
+/* ============ 状态 ============ */
+var LS_ITEMS='lab_items_v3', LS_LOGS='lab_logs_v3', LS_NAME='lab_name_v3', LS_CFG='lab_cfg_v3', LS_ROOM='lab_room_v3';
+var items=[], logs=[], myName='', syncMode='local', roomId='', isHost=false;
+var peer=null, hostConn=null, guestConns={}, cloudTimer=null, lastCloudTs=0;
+var myPeerId='', onlineUsers=[], presenceTimer=null;
+var currentUser=null; // {username, displayName, role, status}
+var LS_SESSION='lab_session_v3';
+
+function defaultItems(){
+  return [
+    {id:'d1',name:'蚕丝蛋白溶液',unit:'mL',current:860,total:1000,threshold:200,updatedAt:nowStr()},
+    {id:'d2',name:'莱赛尔浆粕',unit:'g',current:45,total:500,threshold:100,updatedAt:nowStr()},
+    {id:'d3',name:'NMMO 溶剂',unit:'mL',current:120,total:500,threshold:150,updatedAt:nowStr()},
+    {id:'d4',name:'无水乙醇',unit:'瓶',current:8,total:20,threshold:5,updatedAt:nowStr()},
+    {id:'d5',name:'生理盐水',unit:'mL',current:3000,total:5000,threshold:500,updatedAt:nowStr()}
+  ];
+}
+function load(k,d){ try{ var v=JSON.parse(localStorage.getItem(k)); return v===null||v===undefined?d:v; }catch(e){ return d; } }
+function save(k,v){ localStorage.setItem(k, JSON.stringify(v)); }
+function uid(){ return 'x'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function nowStr(){ var d=new Date(),p=function(n){return (n<10?'0':'')+n;};
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes()); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+/* ============ 账号 / 登录 ============ */
+function usersUrl(username){
+  var c = getCloudCfg();
+  if(!c || !c.url) return null;
+  var base = c.url.replace(/\/+$/,'') + '/app_users';
+  return username ? (base + '/' + encodeURIComponent(username) + '.json') : (base + '.json');
+}
+function hashPass(str){
+  // 简单哈希（实验室场景足够；非高安全场景）
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode('lab_salt_v1:'+str)).then(function(buf){
+    return Array.from(new Uint8Array(buf)).map(function(b){return b.toString(16).padStart(2,'0');}).join('');
+  });
+}
+function saveSession(u){
+  localStorage.setItem(LS_SESSION, JSON.stringify({username:u.username, displayName:u.displayName, role:u.role, status:u.status}));
+}
+function clearSession(){ localStorage.removeItem(LS_SESSION); }
+function loadSession(){ return load(LS_SESSION, null); }
+function showMainApp(){
+  document.getElementById('authGate').classList.add('hidden');
+  document.getElementById('mainApp').classList.add('show');
+  myName = currentUser.displayName || currentUser.username;
+  document.getElementById('inName').value = myName;
+  document.getElementById('curUserName').textContent = myName + '（'+currentUser.username+'）';
+  var roleEl = document.getElementById('curUserRole');
+  if(currentUser.role==='admin'){
+    roleEl.textContent = '管理员';
+    roleEl.className = 'role role-admin';
+    document.getElementById('btnAdmin').style.display = '';
+  } else {
+    roleEl.textContent = '普通用户';
+    roleEl.className = 'role role-user';
+    document.getElementById('btnAdmin').style.display = 'none';
+  }
+  localStorage.setItem(LS_NAME, myName);
+}
+function showAuthGate(msg){
+  document.getElementById('authGate').classList.remove('hidden');
+  document.getElementById('mainApp').classList.remove('show');
+  if(msg) toast(msg, 'err');
+}
+function doLogin(){
+  if(!hasCloudCfg()){ toast('请先配置云端数据库 URL','err'); return; }
+  var user = (document.getElementById('loginUser').value||'').trim().toLowerCase();
+  var pass = document.getElementById('loginPass').value||'';
+  if(!user || !pass){ toast('请填写用户名和密码','err'); return; }
+  if(!/^[a-z0-9_]{2,20}$/.test(user)){ toast('用户名应为 2–20 位字母/数字/下划线','err'); return; }
+  fetch(usersUrl(user)).then(function(r){ return r.json(); }).then(function(d){
+    if(!d || !d.passwordHash){ toast('用户不存在','err'); return; }
+    return hashPass(pass).then(function(h){
+      if(h !== d.passwordHash){ toast('密码错误','err'); return; }
+      if(d.status === 'pending'){ toast('账号待管理员审核，请稍后再试','err'); return; }
+      if(d.status === 'rejected'){ toast('账号申请已被拒绝，请联系管理员','err'); return; }
+      if(d.status !== 'approved'){ toast('账号状态异常，请联系管理员','err'); return; }
+      currentUser = {username:user, displayName:d.displayName||user, role:d.role||'user', status:d.status};
+      saveSession(currentUser);
+      showMainApp();
+      toast('登录成功','ok');
+    });
+  }).catch(function(){ toast('登录失败，请检查网络与云配置','err'); });
+}
+function doRegister(){
+  if(!hasCloudCfg()){ toast('请先配置云端数据库 URL','err'); return; }
+  var user = (document.getElementById('regUser').value||'').trim().toLowerCase();
+  var name = (document.getElementById('regName').value||'').trim();
+  var pass = document.getElementById('regPass').value||'';
+  var pass2 = document.getElementById('regPass2').value||'';
+  if(!user || !name || !pass){ toast('请填写完整信息','err'); return; }
+  if(!/^[a-z0-9_]{2,20}$/.test(user)){ toast('用户名应为 2–20 位字母/数字/下划线','err'); return; }
+  if(pass.length < 4){ toast('密码至少 4 位','err'); return; }
+  if(pass !== pass2){ toast('两次密码不一致','err'); return; }
+  fetch(usersUrl()).then(function(r){ return r.json(); }).then(function(all){
+    var isFirst = !all || Object.keys(all).length === 0;
+    if(all && all[user]){ toast('用户名已存在','err'); return; }
+    return hashPass(pass).then(function(h){
+      var body = {
+        displayName: name,
+        passwordHash: h,
+        role: isFirst ? 'admin' : 'user',
+        status: isFirst ? 'approved' : 'pending',
+        createdAt: Date.now()
+      };
+      return fetch(usersUrl(user), {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      }).then(function(r){
+        if(!r.ok) throw new Error('fail');
+        if(isFirst){
+          currentUser = {username:user, displayName:name, role:'admin', status:'approved'};
+          saveSession(currentUser);
+          showMainApp();
+          toast('注册成功，你是首个用户，已自动成为管理员','ok');
+        } else {
+          toast('申请已提交，请等待管理员审核通过后再登录','ok');
+          document.getElementById('tabLogin').click();
+          document.getElementById('loginUser').value = user;
+        }
+      });
+    });
+  }).catch(function(){ toast('注册失败，请检查网络与云配置','err'); });
+}
+function tryRestoreSession(){
+  var s = loadSession();
+  if(!s || !s.username){ showAuthGate(); return; }
+  if(!hasCloudCfg()){ clearSession(); showAuthGate('请先配置云端数据库'); return; }
+  // 向云端校验状态是否仍有效
+  fetch(usersUrl(s.username)).then(function(r){ return r.json(); }).then(function(d){
+    if(!d || d.status !== 'approved'){
+      clearSession();
+      showAuthGate(d && d.status==='pending' ? '账号待审核' : '登录已失效，请重新登录');
+      return;
+    }
+    currentUser = {username:s.username, displayName:d.displayName||s.displayName, role:d.role||'user', status:'approved'};
+    saveSession(currentUser);
+    showMainApp();
+  }).catch(function(){
+    // 网络失败时允许用本地 session 临时进入
+    currentUser = s;
+    showMainApp();
+    toast('无法校验账号状态，已使用本地登录信息','err');
+  });
+}
+function loadAdminUsers(){
+  var box = document.getElementById('adminUserList');
+  if(!hasCloudCfg()){ box.innerHTML = '请先配置云端'; return; }
+  box.innerHTML = '加载中…';
+  fetch(usersUrl()).then(function(r){ return r.json(); }).then(function(all){
+    if(!all){ box.innerHTML = '暂无用户'; return; }
+    var html = '';
+    Object.keys(all).sort().forEach(function(uname){
+      var u = all[uname];
+      if(!u) return;
+      var st = u.status || 'pending';
+      var stCls = st==='approved'?'st-approved':(st==='rejected'?'st-rejected':'st-pending');
+      var stTxt = st==='approved'?'已通过':(st==='rejected'?'已拒绝':'待审核');
+      var roleTxt = u.role==='admin'?'管理员':'普通用户';
+      html += '<div class="user-row">'
+        +'<span class="uname">'+esc(uname)+'</span>'
+        +'<span>'+esc(u.displayName||'')+'</span>'
+        +'<span class="ustatus '+stCls+'">'+stTxt+'</span>'
+        +'<span style="color:var(--t3)">'+roleTxt+'</span>';
+      if(uname !== currentUser.username){
+        if(st==='pending'){
+          html += '<button class="mini" data-au="approve" data-u="'+esc(uname)+'">通过</button>';
+          html += '<button class="mini ghost" data-au="reject" data-u="'+esc(uname)+'">拒绝</button>';
+        } else if(st==='approved'){
+          html += '<button class="mini ghost" data-au="reject" data-u="'+esc(uname)+'">禁用</button>';
+          if(u.role!=='admin') html += '<button class="mini" data-au="makeadmin" data-u="'+esc(uname)+'">设为管理员</button>';
+        } else if(st==='rejected'){
+          html += '<button class="mini" data-au="approve" data-u="'+esc(uname)+'">重新通过</button>';
+        }
+      }
+      html += '</div>';
+    });
+    box.innerHTML = html || '暂无用户';
+  }).catch(function(){ box.innerHTML = '加载失败'; });
+}
+function adminUpdateUser(uname, patch){
+  fetch(usersUrl(uname)).then(function(r){ return r.json(); }).then(function(d){
+    if(!d){ toast('用户不存在','err'); return; }
+    Object.keys(patch).forEach(function(k){ d[k]=patch[k]; });
+    return fetch(usersUrl(uname), {
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(d)
+    }).then(function(r){
+      if(!r.ok) throw new Error('fail');
+      toast('已更新','ok');
+      loadAdminUsers();
+    });
+  }).catch(function(){ toast('操作失败','err'); });
+}
+
+/* ============ 初始化 ============ */
+function init(){
+  items = load(LS_ITEMS, defaultItems());
+  logs  = load(LS_LOGS, []);
+  myName = localStorage.getItem(LS_NAME) || '';
+  document.getElementById('inName').value = myName;
+  document.getElementById('inRoom').value = localStorage.getItem(LS_ROOM) || '';
+  applyCloudCfgToForm();
+  var authUrl = document.getElementById('authCfgUrl');
+  if(authUrl){
+    var c = getCloudCfg();
+    authUrl.value = (c && c.url) ? c.url : '';
+  }
+  renderAll();
+  bindEvents();
+  bindAuthEvents();
+  tryRestoreSession();
+}
+function bindAuthEvents(){
+  document.getElementById('tabLogin').addEventListener('click',function(){
+    this.classList.add('active');
+    document.getElementById('tabReg').classList.remove('active');
+    document.getElementById('loginBox').style.display='';
+    document.getElementById('regBox').style.display='none';
+  });
+  document.getElementById('tabReg').addEventListener('click',function(){
+    this.classList.add('active');
+    document.getElementById('tabLogin').classList.remove('active');
+    document.getElementById('loginBox').style.display='none';
+    document.getElementById('regBox').style.display='';
+  });
+  document.getElementById('btnDoLogin').addEventListener('click', doLogin);
+  document.getElementById('btnDoReg').addEventListener('click', doRegister);
+  document.getElementById('loginPass').addEventListener('keydown',function(e){ if(e.key==='Enter') doLogin(); });
+  document.getElementById('authOpenCloud').addEventListener('click',function(){
+    document.getElementById('authCloudBox').style.display = document.getElementById('authCloudBox').style.display==='none'?'block':'none';
+  });
+  document.getElementById('btnAuthSaveCfg').addEventListener('click',function(){
+    var url = (document.getElementById('authCfgUrl').value||'').trim();
+    if(!url){ toast('请填写数据库 URL','err'); return; }
+    if(!/^https?:\/\/.+/i.test(url)){ toast('URL 格式不正确','err'); return; }
+    save(LS_CFG,{url:url});
+    applyCloudCfgToForm();
+    toast('云端配置已保存','ok');
+  });
+  document.getElementById('btnLogout').addEventListener('click',function(){
+    if(!confirm('确定退出登录？')) return;
+    clearSession();
+    currentUser = null;
+    stopPresence();
+    if(cloudTimer){ clearInterval(cloudTimer); cloudTimer=null; }
+    syncMode='local'; roomId='';
+    showAuthGate();
+    toast('已退出登录');
+  });
+  document.getElementById('btnAdmin').addEventListener('click',function(){
+    var p = document.getElementById('adminPanel');
+    p.classList.toggle('open');
+    if(p.classList.contains('open')) loadAdminUsers();
+  });
+  document.getElementById('adminUserList').addEventListener('click',function(e){
+    var b = e.target.closest('button[data-au]');
+    if(!b) return;
+    var act = b.getAttribute('data-au'), uname = b.getAttribute('data-u');
+    if(act==='approve') adminUpdateUser(uname, {status:'approved'});
+    else if(act==='reject') adminUpdateUser(uname, {status:'rejected'});
+    else if(act==='makeadmin') adminUpdateUser(uname, {role:'admin', status:'approved'});
+  });
+}
+init();
+
+/* ============ 渲染 ============ */
+function statusOf(it){
+  if(it.current<=0) return {cls:'st-empty',txt: it.current<0? '欠量 '+Math.abs(it.current)+esc(it.unit) : '空库'};
+  if(it.current < it.threshold) return {cls:'st-low',txt:'低库存'};
+  return {cls:'st-ok',txt:'充足'};
+}
+function filtered(){
+  var kw=(document.getElementById('inSearch').value||'').trim().toLowerCase();
+  var f=document.getElementById('selFilter').value;
+  var s=document.getElementById('selSort').value;
+  var arr=items.slice();
+  if(kw) arr=arr.filter(function(x){ return x.name.toLowerCase().indexOf(kw)>=0; });
+  if(f==='enough') arr=arr.filter(function(x){ return x.current>0 && x.current>=x.threshold; });
+  else if(f==='low') arr=arr.filter(function(x){ return x.current>0 && x.current<x.threshold; });
+  else if(f==='empty') arr=arr.filter(function(x){ return x.current<=0; });
+  if(s==='curAsc') arr.sort(function(a,b){ return a.current-b.current; });
+  else if(s==='updated') arr.sort(function(a,b){ return b.updatedAt.localeCompare(a.updatedAt); });
+  else arr.sort(function(a,b){ return a.name.localeCompare(b.name,'zh'); });
+  return arr;
+}
+function renderTable(){
+  var arr=filtered(), html='';
+  if(!arr.length){
+    html='<tr class="empty-row"><td colspan="4">'+ (items.length? '没有符合条件的药品':'暂无药品，点击「新增药品」开始登记') +'</td></tr>';
+  } else {
+    arr.forEach(function(it){
+      var st=statusOf(it);
+      html+='<tr>'
+        +'<td><div class="drug-name">'+esc(it.name)+'</div><div class="drug-sub">'+esc(it.unit||'—')+' · 更新于 '+esc(it.updatedAt)+'</div></td>'
+        +'<td class="num">'+it.current+' <span class="unit">/ '+(it.total!=null?it.total:'—')+' '+esc(it.unit||'')+'</span></td>'
+        +'<td><span class="st '+st.cls+'">'+st.txt+'</span></td>'
+        +'<td class="ops">'
+        +'<button class="mini" data-action="in" data-id="'+it.id+'">入库</button>'
+        +'<button class="mini" data-action="out" data-id="'+it.id+'">领用</button>'
+        +'<button class="mini ghost" data-action="edit" data-id="'+it.id+'">编辑</button>'
+        +'<button class="mini ghost" data-action="del" data-id="'+it.id+'">删除</button>'
+        +'</td></tr>';
+    });
+  }
+  document.getElementById('tbBody').innerHTML=html;
+}
+function renderStats(){
+  var total=items.length;
+  var ok=items.filter(function(x){ return x.current>0 && x.current>=x.threshold; }).length;
+  var low=items.filter(function(x){ return x.current>0 && x.current<x.threshold; }).length;
+  var empty=items.filter(function(x){ return x.current<=0; }).length;
+  var sumC=0,sumT=0; items.forEach(function(x){ sumC+=Number(x.current)||0; sumT+=Number(x.total)||0; });
+  var pct = sumT>0 ? Math.round(sumC/sumT*100)+'%' : '—';
+  document.getElementById('stTotal').textContent=total;
+  document.getElementById('stOk').textContent=ok;
+  document.getElementById('stLow').textContent=low;
+  document.getElementById('stEmpty').textContent=empty;
+  document.getElementById('stPct').textContent=pct;
+}
+function renderLogs(){
+  var box=document.getElementById('logList');
+  document.getElementById('logCount').textContent='（最近 '+logs.length+' 条）';
+  if(!logs.length){ box.innerHTML='<div style="color:var(--t3);padding:4px 0">暂无操作记录</div>'; return; }
+  var html='';
+  logs.slice().reverse().forEach(function(l){
+    var tg='tg-'+l.type;
+    var tagTxt={in:'入库',out:'领用',edit:'编辑',add:'新增',del:'删除'}[l.type]||l.type;
+    html+='<div class="log-item">'
+      +'<span class="log-time">'+esc(l.time)+'</span>'
+      +'<span class="log-tag '+tg+'">'+tagTxt+'</span>'
+      +'<span class="log-text">'+esc(l.user||'—')+' · '+esc(l.name)
+      +(l.delta!=null?'（'+l.delta+'）':'')+'</span>'
+      +(l.note? '<span class="log-note">'+esc(l.note)+'</span>':'')
+      +'</div>';
+  });
+  box.innerHTML=html;
+}
+function renderShared(){
+  var badge=document.getElementById('modeBadge'), txt=document.getElementById('modeText');
+  if(syncMode==='p2p'){
+    badge.className='badge b-p2p';
+    var p2pNames = [];
+    if(isHost){
+      p2pNames.push(myName||'我');
+      Object.keys(guestConns).forEach(function(k){
+        var c=guestConns[k];
+        p2pNames.push((c._userName)||('成员'));
+      });
+      badge.innerHTML='<span class="dot"></span>房间已创建 · 在线 '+p2pNames.length+' 人';
+      txt.textContent='房间号：'+roomId+'　在线：'+p2pNames.join('、')+'　· 点对点模式，创建者需保持页面打开。';
+    } else {
+      badge.innerHTML='<span class="dot"></span>已加入房间 · 实时同步中';
+      txt.textContent='房间号：'+roomId+'　与创建者实时同步，所有操作即时互通。';
+    }
+  } else if(syncMode==='cloud'){
+    badge.className='badge b-cloud';
+    var names = onlineUsers.map(function(u){ return u.name || '未命名'; });
+    var n = names.length || 1;
+    badge.innerHTML='<span class="dot"></span>云端永久 · 在线 '+n+' 人';
+    txt.textContent='房间号：'+roomId+'　在线：'+(names.length? names.join('、') : (myName||'我'))+'　· 数据保存在云端，随时可加入。';
+  } else {
+    badge.className='badge b-local';
+    badge.innerHTML='<span class="dot"></span>本地模式';
+    txt.textContent='当前为本地使用，数据仅保存在本机。创建/加入房间后即可多人共享。';
+  }
+}
+function renderAll(){ renderStats(); renderTable(); renderLogs(); renderShared(); }
+
+/* ============ 数据持久化 + 广播 ============ */
+function commit(){
+  save(LS_ITEMS,items); save(LS_LOGS,logs);
+  var msg={type:'data', items:items, logs:logs};
+  if(syncMode==='p2p'){
+    if(isHost){ Object.keys(guestConns).forEach(function(k){ var c=guestConns[k]; if(c.open) c.send(msg); }); }
+    else if(hostConn && hostConn.open){ hostConn.send(msg); }
+  } else if(syncMode==='cloud'){ cloudWrite(msg); }
+  renderAll();
+}
+function addLog(type,name,delta,note){
+  logs.push({time:nowStr(), user:myName||'未命名', type:type, name:name, delta:delta, note:note||''});
+  if(logs.length>200) logs=logs.slice(-200);
+}
+
+/* ============ 共享：点对点（PeerJS） ============ */
+function peerReady(){ return (typeof Peer!=='undefined'); }
+function genRoomCode(){ var s=''; var cs='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; for(var i=0;i<6;i++) s+=cs[Math.floor(Math.random()*cs.length)]; return s; }
+function genPeerId(){ return 'u'+Math.random().toString(36).slice(2,10); }
+function applyRemote(d){
+  items=d.items||[]; logs=d.logs||[]; save(LS_ITEMS,items); save(LS_LOGS,logs); renderAll();
+}
+function createRoom(){
+  if(!myName){ toast('请先填写昵称'); return; }
+  // 优先走云端
+  if(hasCloudCfg()){ 
+    toast('正在使用云端模式创建房间…'); 
+    createCloudRoom(); 
+    return; 
+  }
+  if(!peerReady()){ toast('共享组件加载失败，请检查网络后刷新页面；或先配置「云设置」','err'); return; }
+  var code=(document.getElementById('inRoom').value||'').trim() || genRoomCode();
+  if(!/^[A-Za-z0-9_-]{2,}$/.test(code)){ toast('房间号需 2 位以上字母/数字/下划线/连字符','err'); return; }
+  setBusy(true);
+  var done=false;
+  var hostTimer=setTimeout(function(){
+    if(done) return;
+    try{ if(peer) peer.destroy(); }catch(e){}
+    setBusy(false);
+    toast('创建超时：请确认网络能访问点对点信令服务器（部分校园网会屏蔽，可改用「云设置」实现永久房间）。','err');
+  },15000);
+  peer=new Peer(code,{debug:0});
+  peer.on('open',function(id){
+    if(done) return; done=true; clearTimeout(hostTimer);
+    isHost=true; syncMode='p2p'; roomId=id; localStorage.setItem(LS_ROOM,id);
+    setBusy(false); toast('房间已创建：'+id,'ok'); renderShared();
+  });
+  peer.on('error',function(e){
+    if(done){ setBusy(false); return; }
+    clearTimeout(hostTimer); setBusy(false);
+    if(e.type==='unavailable-id') toast('该房间号已被占用，请换一个','err');
+    else toast('创建失败（'+(e.type||'未知')+'）：请检查网络，或改用「云设置」','err');
+  });
+  peer.on('connection',function(c){
+    c.on('open',function(){
+      guestConns[c.peer]=c;
+      try{ c.send({type:'data', items:items, logs:logs}); }catch(e){}
+      c.on('data',function(d){ handleHostData(d,c); });
+      c.on('close',function(){ delete guestConns[c.peer]; renderShared(); });
+      renderShared();
+    });
+  });
+}
+function joinRoom(){
+  if(!myName){ toast('请先填写昵称'); return; }
+  var code=(document.getElementById('inRoom').value||'').trim();
+  if(!code){ toast('请输入房间号','err'); return; }
+  // 优先走云端
+  if(hasCloudCfg()){ 
+    toast('正在使用云端模式加入房间…'); 
+    joinCloudRoom(code); 
+    return; 
+  }
+  if(!peerReady()){ toast('共享组件加载失败，请检查网络后刷新页面；或先配置「云设置」','err'); return; }
+  if(items.length && !confirm('本地已有 '+items.length+' 条数据，加入后将采用房间数据并覆盖本地。继续加入？')) return;
+  setBusy(true);
+  var joined=false, tries=0;
+  tryJoin();
+  function tryJoin(){
+    if(joined) return;
+    tries++;
+    var myId=genPeerId();
+    peer=new Peer(myId,{debug:0});
+    var jTimer=setTimeout(function(){
+      if(!joined && peer){ try{ peer.destroy(); }catch(e){} peer=null; }
+      setBusy(false);
+      toast('连接超时（第 '+tries+' 次）：请确认房间号无误、创建者在线，且网络能访问点对点信令服务器（部分校园网会屏蔽，可改用「云设置」）。','err');
+      renderShared();
+    },15000);
+    peer.on('open',function(){
+      try{
+        var c=peer.connect(code,{reliable:true, serialization:'json'});
+        hostConn=c;
+        c.on('open',function(){
+          joined=true; clearTimeout(jTimer);
+          syncMode='p2p'; isHost=false; roomId=code; localStorage.setItem(LS_ROOM,code);
+          setBusy(false); toast('已加入房间 '+code,'ok'); renderShared();
+          try{ c.send({type:'data', items:items, logs:logs, join:true, name:myName}); }catch(e){}
+        });
+        c.on('data',function(d){ if(d && d.type==='data' && !d.join){ applyRemote(d); toast('已同步房间最新数据','ok'); } });
+        c.on('close',function(){ if(joined){ toast('与房间的连接已断开','err'); syncMode='local'; renderShared(); } });
+        c.on('error',function(){ if(joined){ toast('连接出错，请尝试重新加入','err'); } });
+      }catch(e){}
+    });
+    peer.on('error',function(e){
+      if(joined){ clearTimeout(jTimer); setBusy(false); return; }
+      var retriable=(e.type==='peer-unavailable'||e.type==='network'||e.type==='socket-error'||e.type==='server-error'||e.type==='disconnected');
+      if(retriable && tries<3){
+        clearTimeout(jTimer);
+        try{ peer.destroy(); }catch(_e){} peer=null;
+        toast('连接未成功（'+(e.type||'未知')+'），正在自动重试…');
+        setTimeout(tryJoin, 800);
+        return;
+      }
+      clearTimeout(jTimer); setBusy(false);
+      if(e.type==='peer-unavailable') toast('未找到房间「'+code+'」：请确认房间号一字不差、且创建者在线','err');
+      else toast('加入失败（'+(e.type||'未知')+'）：请检查网络，或改用「云设置」共享','err');
+    });
+  }
+}
+function handleHostData(d,c){
+  if(!d) return;
+  if(d.type==='data' && d.join){
+    // 记录加入者昵称
+    if(d.name) c._userName = d.name;
+    renderShared();
+  } else if(d.type==='data'){
+    applyRemote(d);
+    Object.keys(guestConns).forEach(function(k){
+      var cc=guestConns[k];
+      if(cc!==c && cc.open) cc.send({type:'data', items:items, logs:logs});
+    });
+  }
+}
+function setBusy(on){
+  document.getElementById('btnCreate').disabled=on;
+  document.getElementById('btnJoin').disabled=on;
+}
+
+/* ============ 共享：云端（Firebase REST，可选） ============ */
+function getCloudCfg(){ 
+  var c = load(LS_CFG, null);
+  // 兼容：如果 localStorage 没有，尝试从输入框读取
+  if((!c || !c.url) && document.getElementById('cfgUrl')){
+    var u = (document.getElementById('cfgUrl').value || '').trim();
+    if(u) c = {url: u};
+  }
+  return c;
+}
+function hasCloudCfg(){ 
+  var c = getCloudCfg(); 
+  return !!(c && c.url && /^https?:\/\//i.test(c.url)); 
+}
+function dbUrl(code){ 
+  var c = getCloudCfg(); 
+  // 测试模式下无需 auth 参数；错误传入 Web API Key 会导致 401
+  return c.url.replace(/\/+$/,'') + '/rooms/' + code + '/data.json'; 
+}
+function presenceUrl(code, uid){
+  var c = getCloudCfg();
+  var base = c.url.replace(/\/+$/,'') + '/rooms/' + code + '/presence';
+  return uid ? (base + '/' + uid + '.json') : (base + '.json');
+}
+function ensureMyPeerId(){
+  if(!myPeerId){
+    myPeerId = localStorage.getItem('lab_peer_id_v3') || ('u'+Math.random().toString(36).slice(2,10));
+    localStorage.setItem('lab_peer_id_v3', myPeerId);
+  }
+  return myPeerId;
+}
+function cloudWrite(msg){
+  msg.updatedAt=Date.now(); lastCloudTs=msg.updatedAt;
+  fetch(dbUrl(roomId),{method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(msg)})
+    .then(function(r){ 
+      if(!r.ok) toast('云端写入失败（'+r.status+'），请确认数据库为「测试模式」且规则允许读写','err'); 
+    })
+    .catch(function(){ toast('云端写入失败，请检查网络或数据库 URL','err'); });
+}
+function writePresence(){
+  if(syncMode!=='cloud' || !roomId) return;
+  var id = ensureMyPeerId();
+  var body = { name: myName || '未命名', lastSeen: Date.now() };
+  fetch(presenceUrl(roomId, id), {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  }).catch(function(){});
+}
+function fetchPresence(){
+  if(syncMode!=='cloud' || !roomId) return;
+  fetch(presenceUrl(roomId)).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+    if(!d){ onlineUsers = [{name: myName||'我', lastSeen: Date.now()}]; renderShared(); return; }
+    var now = Date.now();
+    var list = [];
+    Object.keys(d).forEach(function(k){
+      var u = d[k];
+      if(u && u.lastSeen && (now - u.lastSeen) < 45000){ // 45 秒内视为在线
+        list.push({ id:k, name: u.name || '未命名', lastSeen: u.lastSeen });
+      }
+    });
+    // 确保自己在列表里
+    var selfId = ensureMyPeerId();
+    if(!list.some(function(u){ return u.id === selfId; })){
+      list.push({ id: selfId, name: myName||'我', lastSeen: now });
+    }
+    list.sort(function(a,b){ return (a.name||'').localeCompare(b.name||'','zh'); });
+    onlineUsers = list;
+    renderShared();
+  }).catch(function(){});
+}
+function startPresence(){
+  if(presenceTimer) clearInterval(presenceTimer);
+  writePresence();
+  fetchPresence();
+  presenceTimer = setInterval(function(){
+    if(syncMode!=='cloud' || !roomId) return;
+    writePresence();
+    fetchPresence();
+  }, 12000);
+}
+function stopPresence(){
+  if(presenceTimer){ clearInterval(presenceTimer); presenceTimer=null; }
+  onlineUsers = [];
+}
+function createCloudRoom(){
+  var code=(document.getElementById('inRoom').value||'').trim() || genRoomCode();
+  if(!/^[A-Za-z0-9_-]{2,}$/.test(code)){ toast('房间号需 2 位以上字母/数字/下划线/连字符','err'); return; }
+  setBusy(true);
+  fetch(dbUrl(code)).then(function(r){
+    if(!r.ok) throw new Error('http'+r.status);
+    return r.json();
+  }).then(function(ex){
+    // Firebase 对不存在的路径返回 null（状态码 200）
+    if(ex && ex.items){ 
+      setBusy(false);
+      if(confirm('房间 '+code+' 已存在（'+ex.items.length+' 种药品）。直接加入？')) joinCloudRoom(code);
+      else toast('已取消');
+    } else {
+      syncMode='cloud'; isHost=true; roomId=code; localStorage.setItem(LS_ROOM,code);
+      cloudWrite({items:items, logs:logs});
+      startCloudWatch();
+      startPresence();
+      setBusy(false); toast('云端房间已创建：'+code,'ok'); renderShared();
+    }
+  }).catch(function(e){ 
+    setBusy(false); 
+    var msg = '云端连接失败，请检查数据库 URL 是否正确、是否为测试模式';
+    if(e && e.message && e.message.indexOf('http401')===0) msg = '鉴权失败：请确认数据库规则为测试模式（允许读写）';
+    else if(e && e.message && e.message.indexOf('http')===0) msg = '请求失败（'+e.message.slice(4)+'），请检查数据库 URL 与规则';
+    toast(msg,'err'); 
+  });
+}
+function joinCloudRoom(code){
+  if(items.length && !confirm('本地已有 '+items.length+' 条数据，加入后将采用房间数据并覆盖本地。继续？')) return;
+  setBusy(true);
+  fetch(dbUrl(code)).then(function(r){
+    if(!r.ok) throw new Error('http'+r.status);
+    return r.json();
+  }).then(function(d){
+    // 不存在时 Firebase 返回 null
+    if(!d || !d.items){ setBusy(false); toast('房间不存在或暂无数据，请确认房间号与创建者是否已写入数据','err'); return; }
+    applyRemote(d); lastCloudTs=d.updatedAt||Date.now();
+    syncMode='cloud'; isHost=false; roomId=code; localStorage.setItem(LS_ROOM,code);
+    startCloudWatch();
+    startPresence();
+    setBusy(false); toast('已加入云端房间 '+code,'ok'); renderShared();
+  }).catch(function(e){ 
+    setBusy(false); 
+    var msg = '云端连接失败，请检查网络与数据库 URL';
+    if(e && e.message && e.message.indexOf('http401')===0) msg = '鉴权失败：请确认数据库为测试模式且规则允许读写';
+    else if(e && e.message && e.message.indexOf('http403')===0) msg = '权限不足：请把数据库规则改为测试模式';
+    else if(e && e.message && e.message.indexOf('http')===0) msg = '请求失败（'+e.message.slice(4)+'）';
+    toast(msg,'err'); 
+  });
+}
+function startCloudWatch(){
+  if(cloudTimer) clearInterval(cloudTimer);
+  cloudTimer=setInterval(function(){
+    if(syncMode!=='cloud' || !roomId) return;
+    fetch(dbUrl(roomId)).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){
+      if(d && d.items && d.updatedAt && d.updatedAt!==lastCloudTs){
+        lastCloudTs=d.updatedAt; applyRemote(d);
+      }
+    }).catch(function(){});
+  },6000);
+}
+
+/* ============ 弹窗 ============ */
+var editMode='add', editId=null, stockAction='in', stockId=null;
+function openMask(id){ document.getElementById(id).classList.add('open'); }
+function closeMask(id){ document.getElementById(id).classList.remove('open'); }
+function openEdit(it){
+  editMode = it? 'edit':'add'; editId = it? it.id:null;
+  document.getElementById('editTitle').textContent = it? '编辑药品':'新增药品';
+  document.getElementById('fName').value = it? it.name:'';
+  document.getElementById('fUnit').value = it? (it.unit||''):'';
+  document.getElementById('fThr').value = it? it.threshold:0;
+  document.getElementById('fCur').value = it? it.current:0;
+  document.getElementById('fTot').value = it? (it.total!=null?it.total:''):'';
+  openMask('maskEdit');
+}
+function openStock(action,it){
+  stockAction=action; stockId=it.id;
+  document.getElementById('stockTitle').textContent = action==='in'? '入库':'领用';
+  document.getElementById('stockDrug').textContent = it.name+'（当前余量 '+it.current+' '+esc(it.unit||'')+'）';
+  document.getElementById('fQty').value=''; document.getElementById('fNote').value='';
+  openMask('maskStock');
+}
+
+/* ============ 事件 ============ */
+function bindEvents(){
+  var $=function(id){ return document.getElementById(id); };
+  $('inName').addEventListener('change',function(){ 
+    myName=this.value.trim(); 
+    localStorage.setItem(LS_NAME,myName); 
+    if(syncMode==='cloud') writePresence();
+    renderShared();
+  });
+  $('btnCreate').addEventListener('click',createRoom);
+  $('btnJoin').addEventListener('click',joinRoom);
+  $('btnCloud').addEventListener('click',function(){ $('cloudPanel').classList.toggle('open'); });
+  $('btnSaveCfg').addEventListener('click',function(){
+    var url=$('cfgUrl').value.trim();
+    if(!url){ toast('请填写数据库 URL','err'); return; }
+    if(!/^https?:\/\/.+/i.test(url)){ toast('数据库 URL 格式不正确，应以 https:// 开头','err'); return; }
+    // 兼容旧配置：只保留 url
+    save(LS_CFG,{url:url});
+    toast('云端配置已保存','ok'); $('cfgState').textContent='已配置 ✓';
+  });
+  $('btnClearCfg').addEventListener('click',function(){ localStorage.removeItem(LS_CFG); applyCloudCfgToForm(); toast('已清除云端配置'); });
+  $('inSearch').addEventListener('input',renderTable);
+  $('selFilter').addEventListener('change',renderTable);
+  $('selSort').addEventListener('change',renderTable);
+  $('btnAdd').addEventListener('click',function(){ openEdit(null); });
+  $('btnEditCancel').addEventListener('click',function(){ closeMask('maskEdit'); });
+  $('btnEditOk').addEventListener('click',function(){
+    var name=$('fName').value.trim();
+    if(!name){ toast('请填写药品名称','err'); return; }
+    var unit=$('fUnit').value.trim();
+    var thr=parseFloat($('fThr').value)||0;
+    var cur=parseFloat($('fCur').value); if(isNaN(cur)||cur<0) cur=0;
+    var tot=$('fTot').value===''? null:parseFloat($('fTot').value);
+    if(editMode==='add'){
+      items.push({id:uid(),name:name,unit:unit,current:cur,total:tot,threshold:thr,updatedAt:nowStr()});
+      addLog('add',name,null,'');
+    } else {
+      var it=items.find(function(x){return x.id===editId;});
+      if(!it) return;
+      it.name=name; it.unit=unit; it.current=cur; it.total=tot; it.threshold=thr; it.updatedAt=nowStr();
+      addLog('edit',name,null,'');
+    }
+    closeMask('maskEdit'); commit();
+  });
+  $('btnStockCancel').addEventListener('click',function(){ closeMask('maskStock'); });
+  $('btnStockOk').addEventListener('click',function(){
+    var qty=parseFloat($('fQty').value);
+    if(isNaN(qty)||qty<=0){ toast('请输入有效数量','err'); return; }
+    var note=$('fNote').value.trim();
+    var it=items.find(function(x){return x.id===stockId;});
+    if(!it) return;
+    if(stockAction==='in'){ it.current=Math.round((it.current+qty)*100)/100; }
+    else { it.current=Math.round((it.current-qty)*100)/100; if(it.current<0){ toast('注意：余量已为负（欠量）','err'); } }
+    it.updatedAt=nowStr();
+    addLog(stockAction, it.name, (stockAction==='in'?'+':'−')+qty, note);
+    closeMask('maskStock'); commit();
+  });
+  $('btnDemo').addEventListener('click',function(){
+    if(confirm('载入示例药品将覆盖当前数据，继续？')){
+      items=defaultItems(); logs=[]; commit(); toast('已载入示例数据','ok');
+    }
+  });
+  $('btnClear').addEventListener('click',function(){
+    if(confirm('确定清空全部药品与流水？此操作会同步给其他成员。')){
+      items=[]; logs=[]; commit(); toast('已清空');
+    }
+  });
+  $('btnPdf').addEventListener('click',exportPDF);
+  document.getElementById('tbBody').addEventListener('click',function(e){
+    var b=e.target.closest('button[data-action]');
+    if(!b) return;
+    var id=b.getAttribute('data-id'), act=b.getAttribute('data-action');
+    var it=items.find(function(x){return x.id===id;});
+    if(!it) return;
+    if(act==='edit') openEdit(it);
+    else if(act==='in'||act==='out') openStock(act,it);
+    else if(act==='del'){
+      if(confirm('确定删除「'+it.name+'」？')){
+        addLog('del',it.name,null,'');
+        items=items.filter(function(x){return x.id!==id;});
+        commit();
+      }
+    }
+  });
+}
+function applyCloudCfgToForm(){
+  var c=getCloudCfg(), $=function(id){ return document.getElementById(id); };
+  $('cfgUrl').value = (c && c.url) ? c.url : '';
+  $('cfgState').textContent = (c && c.url) ? '已配置 ✓' : '未配置（可正常使用点对点共享）';
+}
+
+/* ============ Toast ============ */
+function toast(msg,type){
+  var w=document.getElementById('toastWrap');
+  var t=document.createElement('div');
+  t.className='toast'+(type?' '+type:'');
+  t.textContent=msg;
+  w.appendChild(t);
+  requestAnimationFrame(function(){ t.classList.add('show'); });
+  setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ t.remove(); },300); },2600);
+}
+
+/* ============ 导出 PDF ============ */
+function exportPDF(){
+  if(typeof window.jspdf==='undefined' || typeof html2canvas==='undefined'){
+    toast('PDF 组件加载失败，请检查网络后刷新','err'); return;
+  }
+  if(!items.length){ toast('暂无药品可导出','err'); return; }
+  toast('正在生成 PDF…');
+  setTimeout(function(){
+    try{
+      var d=new Date(), p=function(n){return (n<10?'0':'')+n;};
+      var ds=d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+      document.getElementById('pdfMeta').textContent='导出时间：'+ds+' '+p(d.getHours())+':'+p(d.getMinutes());
+      var ok=items.filter(function(x){return x.current>0&&x.current>=x.threshold;}).length;
+      var low=items.filter(function(x){return x.current>0&&x.current<x.threshold;}).length;
+      var empty=items.filter(function(x){return x.current<=0;}).length;
+      document.getElementById('pdfStats').textContent='药品种类 '+items.length+' 种　·　充足 '+ok+'　·　低库存 '+low+'　·　空库/欠量 '+empty;
+      var rows='';
+      items.slice().sort(function(a,b){return a.name.localeCompare(b.name,'zh');}).forEach(function(it){
+        var st=it.current<=0? (it.current<0?'欠量':'空库') : (it.current<it.threshold?'低库存':'充足');
+        rows+='<tr><td>'+esc(it.name)+'</td><td>'+esc(it.unit||'—')+'</td><td>'+it.current+'</td><td>'
+          +(it.total!=null?it.total:'—')+'</td><td>'+st+'</td><td>'+esc(it.updatedAt)+'</td></tr>';
+      });
+      document.getElementById('pdfBody').innerHTML=rows;
+      document.getElementById('pdfLogs').textContent= logs.length? '最近操作：'+(logs.slice(-5).map(function(l){
+        return '['+l.time+'] '+(l.user||'')+' '+(l.type==='in'?'入库':l.type==='out'?'领用':l.type==='edit'?'编辑':l.type==='add'?'新增':'删除')+' '+l.name+(l.delta?'（'+l.delta+'）':'');
+      }).join('；')) : '';
+      html2canvas(document.getElementById('pdfWrap'),{scale:2,backgroundColor:'#fff',useCORS:true}).then(function(canvas){
+        var img=canvas.toDataURL('image/jpeg',0.92);
+        var pdf=new window.jspdf.jsPDF('p','mm','a4');
+        var pw=210, ph=297;
+        var ih=canvas.height*pw/canvas.width;
+        var left=ih, pos=0;
+        pdf.addImage(img,'JPEG',0,pos,pw,ih);
+        left-=ph;
+        while(left>0){ pos-=ph; pdf.addPage(); pdf.addImage(img,'JPEG',0,pos,pw,ih); left-=ph; }
+        pdf.save('实验室药品台账_'+ds+'.pdf');
+        toast('PDF 已导出','ok');
+      });
+    }catch(e){ toast('导出失败：'+e.message,'err'); }
+  },120);
+}
+
+document.querySelectorAll('.mask').forEach(function(m){
+  m.addEventListener('click',function(e){ if(e.target===m) m.classList.remove('open'); });
+});
+window.addEventListener('beforeunload',function(){ 
+  if(peer) peer.destroy(); 
+  // 离开时尽量清除自己的在线状态（不一定成功，靠超时兜底）
+  if(syncMode==='cloud' && roomId && myPeerId){
+    try{
+      navigator.sendBeacon(
+        presenceUrl(roomId, myPeerId),
+        JSON.stringify({ name: myName||'未命名', lastSeen: 0 })
+      );
+    }catch(e){}
+  }
+});
+</script>
+
+<script>(function(){
+var d=document,b=d.body;if(!b)return;
+var old=b.querySelectorAll('[data-aigc-mark],#__xas_aigc_watermark__');
+for(var k=0;k<old.length;k++)old[k].parentNode&&old[k].parentNode.removeChild(old[k]);
+var f=d.createElement("div");
+f.id="__xas_aigc_watermark__";
+f.setAttribute("data-aigc-mark","true");
+f.style.cssText="position:fixed;bottom:8px;right:12px;z-index:2147483647;font-size:11px;padding:3px 7px;font-family:system-ui,sans-serif;pointer-events:none;color:rgba(30,30,30,0.6);background:rgba(255,255,255,0.4);border:0.5px solid rgba(0,0,0,0.08);border-radius:4px;line-height:1.4;backdrop-filter:blur(8px);";
+var paths=["M14.0072 26.6377C14.2318 25.9475 13.3696 25.4389 12.8659 25.9611C9.56694 29.3941 6.9736 33.4696 5.35587 37.9788C-0.86998 55.1279 7.72006 74.1728 24.7867 80.6891C33.1499 83.8815 41.0252 82.7894 44.7212 81.8812C54.0056 79.6016 63.1537 72.4609 66.7114 63.4447C67.1039 62.4525 66.6252 61.3286 65.6404 60.9222C63.78 60.1548 61.9263 59.3896 60.3721 58.7471C59.46 58.3702 58.4117 58.7402 57.9398 59.6076C56.4287 62.3753 54.8496 65.0568 52.4945 67.2274C46.0349 73.5893 36.1675 75.8621 27.5956 72.9036C14.6833 68.6487 7.76998 54.5307 12.124 41.7683C12.3668 41.0553 12.4916 40.3038 12.4621 39.55C12.242 33.8125 12.8228 30.2955 14.0072 26.6377Z","M73.6785 14.313C74.3682 14.5378 74.8765 13.675 74.3546 13.171C70.9241 9.86968 66.8514 7.27451 62.3454 5.65564C45.2084 -0.574603 26.1769 8.0215 19.6651 25.1002C16.4751 33.4692 17.5664 41.3501 18.474 45.0488C20.7519 54.3396 27.8876 63.4943 36.8974 67.0544C37.8889 67.4472 39.012 66.9681 39.4182 65.9827C40.185 64.1209 40.9497 62.2659 41.5918 60.7107C41.9684 59.7979 41.5986 58.7489 40.7318 58.2767C37.9661 56.7645 35.2865 55.1843 33.1174 52.8275C26.76 46.3634 24.4888 36.489 27.4452 27.9111C31.6971 14.9897 45.8051 8.07145 58.5586 12.4285C59.271 12.6715 60.022 12.7964 60.7753 12.7668C66.5088 12.5466 70.0233 13.1278 73.6785 14.313Z","M85.9922 73.9549C85.7676 74.6451 86.6298 75.1537 87.1335 74.6315C90.4324 71.1985 93.0258 67.123 94.6435 62.6138C100.869 45.4647 92.2793 26.4198 75.2127 19.9035C66.8495 16.7111 58.9742 17.8033 55.2782 18.7114C45.9938 20.991 36.8456 28.1317 33.288 37.1479C32.8955 38.1401 33.3742 39.264 34.3589 39.6704C36.2194 40.4378 38.0731 41.203 39.6273 41.8455C40.5394 42.2224 41.5876 41.8524 42.0596 40.985C43.5706 38.2173 45.1498 35.5358 47.5049 33.3652C53.9645 27.0033 63.8319 24.7305 72.4038 27.689C85.3161 31.9439 92.2294 46.0619 87.8754 58.8243C87.6326 59.5373 87.5078 60.2888 87.5373 61.0426C87.7574 66.7801 87.1766 70.2971 85.9922 73.9549Z","M26.2674 86.2849C25.5777 86.0601 25.0694 86.9229 25.5913 87.4269C29.0219 90.7282 33.0945 93.3234 37.6028 94.9423C54.7398 101.173 73.7713 92.5764 80.2831 75.4977C83.4731 67.1287 82.3818 59.2478 81.4742 55.5491C79.1963 46.2583 72.0606 37.1036 63.0508 33.5435C62.0593 33.1507 60.9362 33.6298 60.53 34.6152C59.7632 36.477 58.9985 38.3297 58.3564 39.885C57.9798 40.7977 58.3496 41.8467 59.2163 42.3212C61.9821 43.8334 64.6617 45.4114 66.8285 47.7704C73.1859 54.2345 75.4571 64.1089 72.5007 72.6869C68.2488 85.6082 54.1408 92.5265 41.3874 88.1694C40.6749 87.9264 39.9239 87.8015 39.1706 87.8311C33.4371 88.0513 29.9226 87.4701 26.2674 86.2826V86.2849Z"];
+b.appendChild(f);
+var svg='<svg width="14" height="14" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:inline;vertical-align:-2px;margin:0 4px">';
+for(var i=0;i<paths.length;i++)svg+='<path d="'+paths[i]+'" fill="rgba(30,30,30,0.5)"/>';
+svg+="</svg>";
+f.innerHTML="本页面由"+svg+"超级小爱AI生成";
+})();</script>
+</body>
+</html>
